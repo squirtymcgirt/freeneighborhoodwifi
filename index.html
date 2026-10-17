@@ -151,8 +151,9 @@ function prefetchRoom(){
 }
 // Fifth knock: leaving the page would cancel downloads still in flight, so
 // wait for the prefetch (with a progress overlay) before opening the room.
+let opening=false;
 async function openRoom(){
-  $('#knock').style.display='flex';
+  opening=true; $('#knock').style.display='flex';
   await Promise.race([prefetching||prefetchRoom(),new Promise(r=>setTimeout(r,20000))]);
   location.href='/chambers';
 }
@@ -166,8 +167,12 @@ addEventListener('pointerdown',ev=>{
 // Only events that grant user activation (finger up, click, key) may start
 // playback; pointerdown on touch does not, and a refused play() leaves the
 // WebView showing its grey play button.
+// Never while the room is opening: the fifth knock's click lands on the
+// overlay that just appeared under the finger. And a knock that just misses
+// the little seal shouldn't set it off either.
+const knocking=ev=>opening||knocks.length&&Date.now()-knocks[knocks.length-1]<1500&&ev.target.closest?.('header');
 for(const e of['touchend','click','keydown','mousedown'])addEventListener(e,ev=>{
-  if(ev.target.closest?.('header .seal'))return ev.preventDefault();
+  if(ev.target.closest?.('header .seal')||knocking(ev))return ev.preventDefault();
   if(ev.target.closest?.('a'))ev.preventDefault();
   roll()},{capture:true});
 })();
