@@ -14,6 +14,7 @@ import numpy as np
 ap = argparse.ArgumentParser()
 ap.add_argument("input")
 ap.add_argument("--out", default=os.path.join(os.path.dirname(__file__), "..", "web", "beats.json"))
+ap.add_argument("--bpm", type=float, help="known tempo (a few seconds are too short to detect one)")
 a = ap.parse_args()
 
 SR, HOP = 8000, 400                                   # 50 ms steps
@@ -53,7 +54,7 @@ ac = np.array([np.dot(ks[:-L], ks[L:]) if L else 0 for L in range(0, 200)])
 acf = lambda x: np.interp(x, np.arange(len(ac)), ac)
 periods = np.arange(60 / 170 / 0.05, 60 / 70 / 0.05, 0.005)      # 70..170 BPM
 score = [sum(acf(m * P) for m in range(1, 9)) for P in periods]
-bpm = 60 / (periods[int(np.argmax(score))] * 0.05)
+bpm = a.bpm or 60 / (periods[int(np.argmax(score))] * 0.05)
 
 out = {"step": 0.05, "bpm": round(bpm, 2),
        "env": "".join("%x" % v for v in np.round(env * 15).astype(int)),

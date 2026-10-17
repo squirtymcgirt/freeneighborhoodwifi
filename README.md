@@ -12,15 +12,15 @@ site, served by GitHub Pages.
   point the chambers are multiplayer with push-to-talk; here you're alone.)
 
 ## Your video here
-The video shipped here is a placeholder. Make your own, sized to fit on a
-1.44 MB floppy (AV1 + Opus, two-pass, auto-cropped, with an HEVC/AAC copy for
+The video here is five seconds of a certain chorus, looped. Make your own,
+sized to fit on a 1.44 MB floppy (AV1 + Opus, two-pass, auto-cropped, with an HEVC/AAC copy for
 iPhones), plus the beat map the room's lights follow:
 
     python3 tools/encode.py your.mp4 --out .
-    python3 tools/beatmap.py your.mp4 --out beats.json
+    python3 tools/beatmap.py your.mp4 --out beats.json   # --bpm N for clips under ~20 s
 
 Needs ffmpeg built with libaom, libx265 and libopus, and Python 3 with numpy.
-`tools/placeholder.py` is how the stand-in was made.
+`tools/placeholder.py` makes a stand-in test card with a synthesized beat.
 
 ## Credits
 - [A-Frame](https://aframe.io/) 1.7.0 (MIT), `aframe.min.js`

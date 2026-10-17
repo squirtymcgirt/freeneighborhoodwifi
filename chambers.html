@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>Council Chambers</title>
-<script src="aframe.min.js?v=91158ba438"></script>
+<script src="aframe.min.js?v=6152ef5612"></script>
 <style>
 html,body{margin:0;height:100%;background:#05080f}
 #hint{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:5;font:13px system-ui,sans-serif;color:#c9d6e8;
@@ -41,7 +41,7 @@ for(const e of['touchend','pointerup','click','keydown'])
 // Light show from a precomputed map (tools/beatmap.py): bass envelope and
 // kick onsets per 50 ms step, indexed by the video's playback position.
 // No live audio analysis, so it behaves the same on every phone.
-const BEATS=fetch('beats.json?v=91158ba438').then(r=>r.json()).then(m=>{if(m.bpm)AV.bpm=m.bpm;return m}).catch(()=>null);
+const BEATS=fetch('beats.json?v=6152ef5612').then(r=>r.json()).then(m=>{if(m.bpm)AV.bpm=m.bpm;return m}).catch(()=>null);
 AFRAME.registerComponent('beat',{
   init(){this.kick=0;this.lastStep=-1;this.map=null;BEATS.then(m=>this.map=m);
     this.v=document.querySelector('#tv');
@@ -74,7 +74,7 @@ AFRAME.registerComponent('baked-room',{
     AV.lm=[]; AV.lmBase=LM_SCALE*Math.PI;
     const room=this.el.querySelector('#room'), loader=new THREE.TextureLoader(), tex={};
     const pending=[];
-    const lm=g=>tex[g]||(tex[g]=loader.load(`lm_${g}.webp?v=91158ba438`,t=>{t.flipY=false;t.colorSpace=THREE.SRGBColorSpace;t.channel=0;t.needsUpdate=true;
+    const lm=g=>tex[g]||(tex[g]=loader.load(`lm_${g}.webp?v=6152ef5612`,t=>{t.flipY=false;t.colorSpace=THREE.SRGBColorSpace;t.channel=0;t.needsUpdate=true;
       pending.push(g);if(pending.length===2)this.roomReady()}));
     room.addEventListener('model-loaded',()=>{
       const cache={};
@@ -470,7 +470,7 @@ AFRAME.registerComponent('tap-walk',{
        applied by the baked-room component. Live lights only touch moving
        things (avatars, dancing Rick) and add the disco on top of the bake. -->
   <a-entity light="type:hemisphere;color:#ffe4c4;groundColor:#2a3446;intensity:0.35"></a-entity>
-  <a-entity id="room" gltf-model="url(room.glb?v=91158ba438)"></a-entity>
+  <a-entity id="room" gltf-model="url(room.glb?v=6152ef5612)"></a-entity>
 
   <!-- invisible walkable surfaces for tap-to-walk: the floor and the dais top -->
   <a-plane class="floor" rotation="-90 0 0" width="12" height="16" position="0 0.001 -2" visible="false"></a-plane>
@@ -501,7 +501,7 @@ AFRAME.registerComponent('tap-walk',{
   </a-entity>
 
   <!-- Rick Astley dancing on the front of the dais (mocap: mocap/, board copy: tools/rick/optimize.py) -->
-  <a-entity id="rick" gltf-model="url(rick.glb?v=91158ba438)" position="0 0.445 -7.6" dance></a-entity>
+  <a-entity id="rick" gltf-model="url(rick.glb?v=6152ef5612)" position="0 0.445 -7.6" dance></a-entity>
 
   <!-- the AV cart's screen (cart and CRT body are baked) -->
   <a-entity position="3.6 0 -3.2" rotation="0 -35 0">
@@ -528,7 +528,7 @@ for(const el of document.querySelectorAll('.label')){
 // streamed with Range requests. The first tap also wires the positional
 // audio; dancing Rick starts with it.
 const v=document.querySelector('#tv'), scr=document.querySelector('#tvscreen'), label=document.querySelector('#taplabel');
-v.src=v.canPlayType('video/webm; codecs="av01.0.04M.08, opus"')?'rr.webm?v=91158ba438':'rr.mp4?v=91158ba438';
+v.src=v.canPlayType('video/webm; codecs="av01.0.04M.08, opus"')?'rr.webm?v=6152ef5612':'rr.mp4?v=6152ef5612';
 // No preload yet: the board serves one request at a time, so the 1.4 MB
 // video would compete with the room's model and lightmaps. baked-room
 // starts it once those are in.
