@@ -1,0 +1,30 @@
+# Free Neighborhood Wi-Fi
+
+The City of Schmeattle's public Wi-Fi sign-in page, at
+[freeneighborhoodwifi.com](https://freeneighborhoodwifi.com/). It began as a
+prank captive portal on an ESP32 access point; this is the static copy of its
+site, served by GitHub Pages.
+
+- `index.html`: the sign-in page. Any tap or link plays the video, with sound.
+- Tap the city seal in the header five times for the council chambers: an
+  A-Frame room with Blender-baked lighting, a TV, disco lights driven by a
+  precomputed beat map, and a dancing resident on the dais. (On the access
+  point the chambers are multiplayer with push-to-talk; here you're alone.)
+
+## Your video here
+The video shipped here is a placeholder. Make your own, sized to fit on a
+1.44 MB floppy (AV1 + Opus, two-pass, auto-cropped, with an HEVC/AAC copy for
+iPhones), plus the beat map the room's lights follow:
+
+    python3 tools/encode.py your.mp4 --out .
+    python3 tools/beatmap.py your.mp4 --out beats.json
+
+Needs ffmpeg built with libaom, libx265 and libopus, and Python 3 with numpy.
+`tools/placeholder.py` is how the stand-in was made.
+
+## Credits
+- [A-Frame](https://aframe.io/) 1.7.0 (MIT), `aframe.min.js`
+- The dancer: [Mesh2Motion](https://github.com/Mesh2Motion/mesh2motion-assets)'s
+  CC0 human model, rigged with Make-It-Animatable, dance captured from video
+  with Mocapy
+- Room modelled and light-baked in Blender

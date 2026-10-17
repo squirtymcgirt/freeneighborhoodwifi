@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Council Chambers</title>
+<script src="aframe.min.js?v=91158ba438"></script>
+<style>
+html,body{margin:0;height:100%;background:#05080f}
+#hint{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:5;font:13px system-ui,sans-serif;color:#c9d6e8;
+  background:#0d2a4fcc;border:1px solid #c9a22788;border-radius:99px;padding:7px 14px;pointer-events:none;transition:opacity 1s}
+#count{position:fixed;top:12px;left:12px;z-index:5;font:600 12px system-ui,sans-serif;color:#e8d48a;background:#0d2a4fcc;border:1px solid #c9a22788;border-radius:99px;padding:5px 11px;pointer-events:none}
+#walkring{display:none;position:fixed;z-index:6;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;
+  border:2px solid #c9a227cc;background:#0d2a4f55;pointer-events:none}
+#walkring i{position:absolute;left:50%;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:#e8d48a}
+#talk{position:fixed;left:14px;bottom:14px;z-index:6;width:66px;height:66px;border-radius:50%;border:2px solid #c9a227cc;
+  background:#0d2a4fdd;color:#e8d48a;font:600 10px system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:2px;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;padding:0}
+#talk svg{width:24px;height:24px}
+#talk.on{background:#b3261e;border-color:#ffb4ab;color:#fff;box-shadow:0 0 0 6px #b3261e55}
+#talk.off{opacity:.45}
+</style>
+<script>
+// ---- TV audio: route the video through a positional panner at the TV, so
+// it gets louder as you approach and pans as you turn.
+const AV={level:0,ctx:null,kicks:0,bpm:113,lm:[],lmBase:2*Math.PI,pulse:1,dim:0.45};
+function listener(scene){
+  if(!AV.listener){AV.listener=new THREE.AudioListener(); scene.camera.add(AV.listener); AV.ctx=AV.listener.context}
+  AV.ctx.resume(); return AV.listener;
+}
+function wireAudio(scene,v){
+  if(AV.tv)return AV.ctx.resume();
+  const pa=AV.tv=new THREE.PositionalAudio(listener(scene));
+  pa.setMediaElementSource(v); pa.setRefDistance(1.2); pa.setRolloffFactor(1.6);
+  pa.panner.panningModel='HRTF';
+  scene.querySelector('#tvscreen').object3D.add(pa);
+}
+// Once the video is routed into Web Audio, a suspended context means
+// silence; phones sometimes leave it suspended, so every tap retries.
+for(const e of['touchend','pointerup','click','keydown'])
+  addEventListener(e,()=>{if(AV.ctx&&AV.ctx.state!=='running')AV.ctx.resume()},{capture:true});
+// Light show from a precomputed map (tools/beatmap.py): bass envelope and
+// kick onsets per 50 ms step, indexed by the video's playback position.
+// No live audio analysis, so it behaves the same on every phone.
+const BEATS=fetch('beats.json?v=91158ba438').then(r=>r.json()).then(m=>{if(m.bpm)AV.bpm=m.bpm;return m}).catch(()=>null);
+AFRAME.registerComponent('beat',{
+  init(){this.kick=0;this.lastStep=-1;this.map=null;BEATS.then(m=>this.map=m);
+    this.v=document.querySelector('#tv');
+    this.wins=[...this.el.querySelectorAll('#windows a-plane')];
+    this.seal=this.el.querySelector('#sealgold');},
+  tick(t,dt){
+    if(!this.map||!dt||this.v.paused){AV.pulse=1;return}
+    const i=Math.floor(this.v.currentTime/this.map.step);
+    if(i!==this.lastStep){
+      // catch any kick in the steps we skipped since the last frame
+      for(let j=Math.max(this.lastStep+1,i-3);j<=i;j++)if(this.map.kick[j]==='1'){this.kick=1;AV.kicks++}
+      this.lastStep=i;
+    }
+    this.kick*=Math.pow(0.015,dt/1000);
+    const env=parseInt(this.map.env[i]||'0',16)/15;
+    AV.level+=(env-AV.level)*Math.min(1,dt/60);
+    const L=Math.min(1,AV.level*0.55+this.kick*0.6);
+    AV.pulse=0.8+L*0.55;
+    for(const w of this.wins)w.setAttribute('material','opacity',(0.18+L*0.45)*(0.5+AV.dim));
+    const m=this.seal.getObject3D('mesh')?.material; if(m){m.emissive.set('#c9a227');m.emissiveIntensity=L*0.9}
+  }
+});
+// ---- Baked room: room.glb's meshes are grouped as 'shell' and 'furn'; each
+// group gets its own lightmap (UV0). glTF materials are shared across
+// groups, so they are cloned per group first. Stored value = irradiance /
+// LM_SCALE in sRGB; three's Lambert divides lightmap irradiance by PI.
+const LM_SCALE=2.0;
+AFRAME.registerComponent('baked-room',{
+  init(){
+    AV.lm=[]; AV.lmBase=LM_SCALE*Math.PI;
+    const room=this.el.querySelector('#room'), loader=new THREE.TextureLoader(), tex={};
+    const pending=[];
+    const lm=g=>tex[g]||(tex[g]=loader.load(`lm_${g}.webp?v=91158ba438`,t=>{t.flipY=false;t.colorSpace=THREE.SRGBColorSpace;t.channel=0;t.needsUpdate=true;
+      pending.push(g);if(pending.length===2)this.roomReady()}));
+    room.addEventListener('model-loaded',()=>{
+      const cache={};
+      room.getObject3D('mesh').traverse(o=>{
+        if(!o.isMesh)return;
+        let g=o; while(g&&!['shell','furn'].includes(g.name))g=g.parent;
+        if(!g)return;
+        const key=g.name+'/'+o.material.name;
+        if(!cache[key]){const m=cache[key]=o.material.clone();
+          const t=lm(g.name);t.flipY=false;t.colorSpace=THREE.SRGBColorSpace;
+          m.lightMap=t;m.lightMapIntensity=AV.lmBase;AV.lm.push(m);
+          // lightmaps only feed diffuse; fully metallic brass/steel would go black
+          if(m.metalness>0.5){m.metalness=0.35;m.roughness=Math.max(m.roughness,0.35)}
+          // Blender's emission strength blows out to white in a non-tonemapped scene
+          if(m.emissiveIntensity>1.2)m.emissiveIntensity=1.1;
+          m.userData.emissive0=m.emissiveIntensity}
+        o.material=cache[key];
+      });
+    });
+    this.v=document.querySelector('#tv');
+    this.roomReady=()=>{const v=this.v;if(v.preload!=='auto'){v.preload='auto';v.load()}};
+    setTimeout(()=>this.roomReady(),15000);               // never wait forever on a lost texture
+    this.hemi=this.el.querySelector('[light]');
+  },
+  // House lights, dance-club dim: 45% of the bake normally, 18% while the
+  // TV plays (fades over about a second); the beat pulse rides on top.
+  tick(t,dt){
+    const target=this.v&&!this.v.paused?0.18:0.45;
+    AV.dim+=(target-AV.dim)*Math.min(1,(dt||16)/350);
+    for(const m of AV.lm){
+      m.lightMapIntensity=AV.lmBase*AV.dim*AV.pulse;
+      if(m.userData.emissive0)m.emissiveIntensity=m.userData.emissive0*AV.dim;
+    }
+    if(this.hemi){const l=this.hemi.getObject3D('light');if(l)l.intensity=0.35*AV.dim}
+  }
+});
+// ---- Disco: four moving heads in the top corners. Each is a real spot
+// light plus a visible additive beam; they sweep on the song's tempo and
+// step through the palette on every kick. Only alive while the TV plays.
+// Lights are created up front at intensity 0: adding lights later would
+// force three.js to recompile every material mid-party.
+AFRAME.registerComponent('disco',{
+  init(){
+    const H=7, pal=['#ff2bd6','#2bd9ff','#ffe02b','#5bff6a','#ff7a2b','#8a5bff'].map(c=>new THREE.Color(c));
+    this.pal=pal; this.v=document.querySelector('#tv'); this.heads=[]; this.on=0;
+    const beamMat=()=>new THREE.ShaderMaterial({
+      uniforms:{uColor:{value:new THREE.Color()},uI:{value:0}},
+      transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,
+      vertexShader:`varying float vLen;void main(){vLen=-position.y/${H}.0;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+      fragmentShader:`uniform vec3 uColor;uniform float uI;varying float vLen;
+        void main(){gl_FragColor=vec4(uColor*pow(1.0-vLen,1.4)*0.5*uI,1.0);}`});
+    // apex at the fixture (y=0), opening down to y=-H along the pivot's -Y
+    const cone=new THREE.ConeGeometry(0.75,H,24,1,true); cone.translate(0,-H/2,0);
+    for(const [k,[cx,cz]] of [[-5.6,-9.6],[5.6,-9.6],[-5.6,5.6],[5.6,5.6]].entries()){
+      const base=new THREE.Group(); base.position.set(cx,4.05,cz); this.el.object3D.add(base);
+      const housing=new THREE.Mesh(new THREE.BoxGeometry(0.28,0.22,0.28),new THREE.MeshStandardMaterial({color:'#151515',metalness:0.6,roughness:0.4}));
+      base.add(housing);
+      const pivot=new THREE.Group(); pivot.rotation.order='YXZ'; base.add(pivot);
+      const lens=new THREE.Mesh(new THREE.CircleGeometry(0.09,16),new THREE.MeshBasicMaterial({color:'#222'}));
+      lens.rotation.x=Math.PI/2; lens.position.y=-0.12; pivot.add(lens);
+      const beam=new THREE.Mesh(cone,beamMat()); beam.visible=false; pivot.add(beam);
+      const spot=new THREE.SpotLight('#fff',0,16,0.2,0.55,1); spot.position.set(0,-0.12,0);
+      const tgt=new THREE.Object3D(); tgt.position.set(0,-H,0); pivot.add(spot); pivot.add(tgt); spot.target=tgt;
+      // aim the sweep's centre at the middle of the room
+      const yaw0=Math.atan2(-(0-cx),-(-2-cz));
+      this.heads.push({k,pivot,beam,spot,lens,yaw0});
+    }
+  },
+  tick(t,dt){
+    const party=!this.v.paused; this.on+=((party?1:0)-this.on)*Math.min(1,(dt||16)/400);
+    const T=this.v.currentTime, beat=T*AV.bpm/60, flash=0.6+0.4*Math.min(1,AV.level+0.2);
+    for(const h of this.heads){
+      // yaw: slow 8-beat swing; tilt: 2-beat bob; offsets keep heads out of phase
+      h.pivot.rotation.y=h.yaw0+0.7*Math.sin(beat*Math.PI/4+h.k*1.7);
+      h.pivot.rotation.x=0.95+0.32*Math.sin(beat*Math.PI/2+h.k*2.3);
+      const c=this.pal[(AV.kicks+h.k*2)%this.pal.length];
+      h.beam.material.uniforms.uColor.value.copy(c); h.spot.color.copy(c); h.lens.material.color.copy(c).multiplyScalar(this.on);
+      h.beam.material.uniforms.uI.value=this.on*flash; h.beam.visible=this.on>0.01;
+      h.spot.intensity=this.on*flash*10;
+    }
+  }
+});
+// ---- Dancing Rick: the mocap loop, time-stretched to a whole number of
+// beats at the song's tempo so the moves land on the beat. Dances while the
+// TV plays, rest pose otherwise. His own spotlight takes the current disco
+// colour and flashes on kicks (created at init so no shader recompiles).
+AFRAME.registerComponent('dance',{
+  init(){
+    this.v=document.querySelector('#tv'); this.mixer=null;
+    this.spot=new THREE.SpotLight('#fff',0,10,0.32,0.6,1); this.spot.position.set(0,4.0,-5.2);
+    this.tgt=new THREE.Object3D(); this.tgt.position.set(0,1.3,-7.6);
+    const root=this.el.sceneEl.object3D; root.add(this.spot); root.add(this.tgt); this.spot.target=this.tgt;
+    this.pal=['#ff2bd6','#2bd9ff','#ffe02b','#5bff6a','#ff7a2b','#8a5bff'].map(c=>new THREE.Color(c));
+    this.el.addEventListener('model-loaded',()=>{
+      const model=this.el.getObject3D('mesh'), clip=model.animations&&model.animations[0];
+      model.traverse(o=>{if(o.isSkinnedMesh||o.isMesh)o.frustumCulled=false});   // bind-pose bounds lie
+      if(!clip)return;
+      this.mixer=new THREE.AnimationMixer(model); this.action=this.mixer.clipAction(clip); this.action.play();
+      this.clip=clip; this.mixer.update(0);
+      // The rig's origin is at the hips and the mocap's hip height is only
+      // approximate, so the feet would sink and float. Measure the posed body
+      // (precise = skinned positions) at 48 points through the loop once, then
+      // each frame lift him so his lowest point stands on the stage.
+      const base=this.el.object3D.getWorldPosition(new THREE.Vector3()), box=new THREE.Box3();
+      this.ground=[];
+      for(let i=0;i<48;i++){
+        this.action.time=clip.duration*i/48; this.mixer.update(0);
+        model.position.y=0; model.updateMatrixWorld(true);
+        box.setFromObject(model,true); this.ground.push(base.y-box.min.y);
+      }
+      this.action.time=0; this.mixer.update(0); this.model=model; this.place();
+      this.height=(box.max.y-box.min.y).toFixed(2);
+    });
+  },
+  place(){
+    const g=this.ground, f=this.action.time/this.clip.duration*g.length, i=Math.floor(f)%g.length;
+    this.model.position.y=g[i]+(g[(i+1)%g.length]-g[i])*(f-Math.floor(f));
+  },
+  tick(t,dt){
+    if(!this.mixer||!dt)return;
+    const party=!this.v.paused;
+    if(party){
+      const beats=Math.max(1,Math.round(this.clip.duration*AV.bpm/60));
+      this.action.timeScale=this.clip.duration/(beats*60/AV.bpm);
+      this.mixer.update(dt/1000); this.place();
+    } else if(this.action.time!==0){this.action.time=0;this.mixer.update(0);this.place()}
+    const on=Math.max(0,1-AV.dim/0.45)*2.2;                 // follows the house-lights fade
+    this.spot.color.copy(this.pal[AV.kicks%this.pal.length]);
+    this.spot.intensity=on*(6+10*Math.min(1,AV.level+0.2));
+  }
+});
+// ---- Multiplayer: everyone in the chambers, relayed by the ESP32 on /ws.
+// Pose out ~10x/s ("p x z yaw pitch"); others arrive as "<slot> p ...".
+AFRAME.registerComponent('mp',{
+  init(){
+    this.peers=new Map(); this.me=null; this.last=''; this.sent=0;
+    this.count=document.querySelector('#count');
+    this.rtcs=new Map(); this.talkers=new Set(); this.mic=null; this.tx=false; this.opened=false; this.fails=0;
+    this.connect(); this.pushToTalk();
+  },
+  connect(){
+    // the board relays on /ws of the site itself (wss:// under TLS);
+    // tools/serve.py runs its relay on the next port
+    const ws=this.ws=new WebSocket(location.port?`ws://${location.hostname}:${+location.port+1}/`
+      :`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws`);
+    ws.onmessage=e=>{
+      const m=e.data;
+      if(m[0]==='i'){this.me=+m.slice(1);return}
+      if(m[0]==='x'){this.drop(+m.slice(1));return}
+      const sp=m.indexOf(' '), id=+m.slice(0,sp), body=m.slice(sp+1);
+      if(body[0]==='{'){this.signal(id,JSON.parse(body));return}
+      const [kind,x,z,yaw,pitch]=body.split(' ');
+      if(kind==='p')this.pose(id,+x,+z,+yaw,+pitch);
+      else if(kind==='t')this.talking(id,x==='1');
+    };
+    ws.onopen=()=>{this.opened=true};
+    ws.onclose=()=>{
+      for(const id of [...this.peers.keys()])this.drop(id);
+      // no relay at all (a static copy of the site, e.g. GitHub Pages): go solo
+      if(!this.opened&&++this.fails>=3){for(const s of['#count','#talk'])document.querySelector(s).style.display='none';return}
+      setTimeout(()=>this.connect(),2000);
+    };
+  },
+  avatar(id){
+    const hue=(id*137.5)%360, col=`hsl(${hue},70%,60%)`, e=document.createElement('a-entity');
+    e.innerHTML=`<a-entity class="head" position="0 1.6 0">
+        <a-sphere radius="0.2" color="${col}" material="emissive:${col};emissiveIntensity:0.25"></a-sphere>
+        <a-sphere radius="0.05" position="-0.07 0.04 -0.17" color="#fff"></a-sphere><a-sphere radius="0.05" position="0.07 0.04 -0.17" color="#fff"></a-sphere>
+        <a-sphere radius="0.025" position="-0.07 0.04 -0.215" color="#111"></a-sphere><a-sphere radius="0.025" position="0.07 0.04 -0.215" color="#111"></a-sphere>
+      </a-entity>
+      <a-cone radius-bottom="0.26" radius-top="0.08" height="0.9" position="0 0.95 0" color="${col}" material="opacity:0.55;transparent:true"></a-cone>
+      <a-plane class="tag" width="0.9" height="0.18" position="0 2.05 0" look-at="[camera]"></a-plane>`;
+    this.el.appendChild(e);
+    e.addEventListener('loaded',()=>{
+      const c=document.createElement('canvas');c.id='tag'+id+'_'+Date.now();c.width=512;c.height=102;const g=c.getContext('2d');
+      g.fillStyle='#0d2a4fcc';g.beginPath();g.roundRect(4,4,504,94,46);g.fill();g.strokeStyle='#c9a227';g.lineWidth=4;g.stroke();
+      g.fillStyle='#e8d48a';g.font='600 46px system-ui,sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(`Resident #${id+1}`,256,53);
+      e.querySelector('.tag').setAttribute('material',{shader:'flat',src:c,transparent:true});
+    });
+    return {e,head:null,x:0,z:0,yaw:0,pitch:0,cx:null,cz:0,cyaw:0,cpitch:0,seen:0};
+  },
+  pose(id,x,z,yaw,pitch){
+    let p=this.peers.get(id); if(!p){p=this.avatar(id);this.peers.set(id,p);this.updateCount();if(this.mic)this.rtc(id)}
+    Object.assign(p,{x,z,yaw,pitch,seen:performance.now()});
+    if(p.cx===null)Object.assign(p,{cx:x,cz:z,cyaw:yaw,cpitch:pitch});
+  },
+  drop(id){
+    const p=this.peers.get(id);if(p){p.e.remove();this.peers.delete(id);this.updateCount()}
+    const r=this.rtcs.get(id);if(r){r.pc.close();r.pa?.disconnect();r.el?.remove();this.rtcs.delete(id)}
+    this.talkers.delete(id); this.duck();
+  },
+  // ---- Push-to-talk: WebRTC voice, peer to peer across the AP (one LAN, so
+  // no STUN/TURN), set up through the relay as "@<slot> {json}". Whoever
+  // first holds TALK grabs the mic and offers to everyone; "perfect
+  // negotiation" (the higher slot yields) settles two offers crossing. Each
+  // voice plays from that resident's head, and the TV ducks under it.
+  rtc(id){
+    let r=this.rtcs.get(id); if(r)return r;
+    const pc=new RTCPeerConnection({iceServers:[]});
+    r={pc,polite:this.me>id,making:false,ignore:false}; this.rtcs.set(id,r);
+    pc.onnegotiationneeded=async()=>{
+      try{r.making=true;await pc.setLocalDescription();this.send(id,{d:pc.localDescription})}
+      catch(e){console.warn('voice offer',e)}finally{r.making=false}
+    };
+    pc.onicecandidate=e=>{if(e.candidate)this.send(id,{c:e.candidate})};
+    pc.ontrack=e=>this.hear(id,r,e.streams[0]||new MediaStream([e.track]));
+    if(this.mic)pc.addTrack(this.mic.getAudioTracks()[0],this.mic);
+    return r;
+  },
+  send(id,m){if(this.ws.readyState===1)this.ws.send(`@${id} `+JSON.stringify(m))},
+  async signal(id,{d,c}){
+    const r=this.rtc(id), pc=r.pc;
+    try{
+      if(d){
+        const collide=d.type==='offer'&&(r.making||pc.signalingState!=='stable');
+        r.ignore=collide&&!r.polite; if(r.ignore)return;                 // impolite side ignores the crossing offer
+        await pc.setRemoteDescription(d);                                 // polite side rolls its own back
+        if(d.type==='offer'){await pc.setLocalDescription();this.send(id,{d:pc.localDescription})}
+      }else if(c){
+        try{await pc.addIceCandidate(c)}catch(e){if(!r.ignore)throw e}
+      }
+    }catch(e){console.warn('voice signal',e)}
+  },
+  hear(id,r,stream){
+    if(r.pa)return;
+    // Chrome only feeds a remote WebRTC stream into Web Audio while some
+    // media element is also playing it
+    r.el=new Audio(); r.el.muted=true; r.el.srcObject=stream; r.el.play().catch(()=>{});
+    const pa=r.pa=new THREE.PositionalAudio(listener(this.el.sceneEl));
+    pa.setMediaStreamSource(stream); pa.setRefDistance(1.5); pa.setRolloffFactor(0.8); pa.setVolume(1.6);
+    pa.panner.panningModel='HRTF'; pa.position.set(0,1.6,0);
+    const p=this.peers.get(id); if(p)p.e.object3D.add(pa);
+  },
+  talking(id,on){
+    on?this.talkers.add(id):this.talkers.delete(id);
+    const r=this.rtcs.get(id), p=this.peers.get(id); if(!p)return;
+    if(r?.pa&&!r.pa.parent)p.e.object3D.add(r.pa);
+    const head=p.e.querySelector('.head a-sphere'); if(head)head.setAttribute('material','emissiveIntensity',on?0.9:0.25);
+    this.duck();
+  },
+  duck(){
+    const any=this.tx||this.talkers.size>0;
+    if(AV.tv)AV.tv.setVolume(any?0.3:1);
+  },
+  pushToTalk(){
+    const b=document.querySelector('#talk'), label=b.querySelector('span');
+    if(!navigator.mediaDevices?.getUserMedia){b.classList.add('off');label.textContent='NO MIC';return}
+    let held=false;
+    const on=async e=>{
+      e.preventDefault(); held=true; if(e.pointerId!==undefined)b.setPointerCapture(e.pointerId);
+      listener(this.el.sceneEl);
+      if(!this.mic){
+        try{this.mic=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}})}
+        catch(err){b.classList.add('off');label.textContent='NO MIC';return}
+        const track=this.mic.getAudioTracks()[0]; track.enabled=false;
+        for(const id of this.peers.keys()){const r=this.rtcs.get(id);if(r)r.pc.addTrack(track,this.mic);else this.rtc(id)}
+        if(!held)return;
+      }
+      this.mic.getAudioTracks()[0].enabled=true; this.tx=true; b.classList.add('on'); label.textContent='LIVE';
+      if(this.ws.readyState===1)this.ws.send('t 1'); this.duck();
+    };
+    const off=()=>{
+      held=false; if(!this.tx)return;
+      this.mic.getAudioTracks()[0].enabled=false; this.tx=false; b.classList.remove('on'); label.textContent='TALK';
+      if(this.ws.readyState===1)this.ws.send('t 0'); this.duck();
+    };
+    b.addEventListener('pointerdown',on); b.addEventListener('pointerup',off); b.addEventListener('pointercancel',off);
+    b.addEventListener('contextmenu',e=>e.preventDefault());
+    addEventListener('keydown',e=>{if(e.code==='KeyT'&&!e.repeat)on(e)}); addEventListener('keyup',e=>{if(e.code==='KeyT')off()});
+  },
+  updateCount(){const n=this.peers.size+1;this.count.textContent=n===1?'Only you here':`${n} residents here`},
+  tick(t,dt){
+    // send my pose (10 Hz while changing, 1 Hz heartbeat so newcomers see idlers)
+    const L=this.el.sceneEl.camera?.el.components['look-controls'], rig=document.querySelector('#rig').object3D.position;
+    if(L&&this.ws.readyState===1&&t-this.sent>100){
+      const msg=`p ${rig.x.toFixed(2)} ${rig.z.toFixed(2)} ${L.yawObject.rotation.y.toFixed(2)} ${L.pitchObject.rotation.x.toFixed(2)}`;
+      if(msg!==this.last||t-this.sent>1000){this.ws.send(msg);this.last=msg;this.sent=t}
+    }
+    const k=1-Math.exp(-(dt||16)/100), now=performance.now();
+    for(const[id,p]of this.peers){
+      if(now-p.seen>5000){this.drop(id);continue}
+      p.cx+=(p.x-p.cx)*k; p.cz+=(p.z-p.cz)*k;
+      let dy=p.yaw-p.cyaw; dy=Math.atan2(Math.sin(dy),Math.cos(dy)); p.cyaw+=dy*k; p.cpitch+=(p.pitch-p.cpitch)*k;
+      p.e.object3D.position.set(p.cx,0,p.cz); p.e.object3D.rotation.y=p.cyaw;
+      const head=p.head||(p.head=p.e.querySelector('.head')?.object3D); if(head)head.rotation.x=p.cpitch;
+    }
+  }
+});
+// Billboard helper for name tags (yaw only, so tags stay upright).
+AFRAME.registerComponent('look-at',{schema:{type:'selector'},
+  tick(){const cam=this.el.sceneEl.camera;if(!cam)return;const w=new THREE.Vector3();cam.getWorldPosition(w);
+    const me=new THREE.Vector3();this.el.object3D.getWorldPosition(me);
+    const pr=this.el.object3D.parent; const yaw=Math.atan2(w.x-me.x,w.z-me.z)-(pr?pr.rotation.y:0);
+    this.el.object3D.rotation.set(0,yaw,0)}});
+// Stock look-controls only yaws on touch (pitch is meant to come from
+// device tilt, which is switched off: it fought the drag). Drive both axes
+// through look-controls' own pitch/yaw objects so mouse and touch agree.
+AFRAME.registerComponent('touch-look',{
+  init(){
+    let x=0,y=0,on=false;
+    const lc=()=>this.el.components['look-controls'], k=2.2;
+    const bind=()=>{
+      const c=this.el.sceneEl.canvas;
+      c.addEventListener('touchstart',e=>{if(e.touches.length===1){on=true;x=e.touches[0].clientX;y=e.touches[0].clientY}},{passive:true});
+      c.addEventListener('touchmove',e=>{
+        if(!on||!lc()||this.el.sceneEl.is('walking'))return;
+        const t=e.touches[0], h=c.clientHeight, L=lc();
+        L.yawObject.rotation.y+=(t.clientX-x)/h*k;
+        L.pitchObject.rotation.x=Math.max(-Math.PI/2,Math.min(Math.PI/2,L.pitchObject.rotation.x+(t.clientY-y)/h*k));
+        x=t.clientX;y=t.clientY;
+      },{passive:true});
+      c.addEventListener('touchend',()=>{on=false});
+    };
+    this.el.sceneEl.hasLoaded?bind():this.el.sceneEl.addEventListener('loaded',bind);
+  }
+});
+// Hold still ~350 ms to walk toward where you're facing; slide the finger
+// sideways to turn while walking. Vertical finger motion is ignored and you
+// never leave the floor.
+AFRAME.registerComponent('hold-walk',{
+  init(){
+    this.lx=0;this.timer=0;this.ring=document.querySelector('#walkring');this.dot=this.ring.firstElementChild;
+    const scene=this.el.sceneEl;
+    const bind=()=>{
+      const c=scene.canvas; let x0=0,y0=0;
+      const stop=()=>{clearTimeout(this.timer);scene.removeState('walking');this.ring.style.display='none'};
+      c.addEventListener('touchstart',e=>{
+        if(e.touches.length!==1)return stop();
+        x0=this.lx=e.touches[0].clientX;y0=e.touches[0].clientY;
+        this.timer=setTimeout(()=>{
+          scene.addState('walking');this.el.removeAttribute('animation');
+          Object.assign(this.ring.style,{display:'block',left:x0+'px',top:y0+'px'});this.dot.style.transform='translateX(0)';
+        },350);
+      },{passive:true});
+      c.addEventListener('touchmove',e=>{
+        const t=e.touches[0];
+        if(!scene.is('walking')){if(Math.hypot(t.clientX-x0,t.clientY-y0)>10)clearTimeout(this.timer);this.lx=t.clientX;return}
+        // turn the view (yaw only); walking always heads where you face
+        const L=scene.camera.el.components['look-controls'];
+        L.yawObject.rotation.y-=(t.clientX-this.lx)/c.clientHeight*2.2; this.lx=t.clientX;  // steering-wheel: slide right, turn right
+        const off=Math.max(-28,Math.min(28,(t.clientX-x0)/3));
+        this.dot.style.transform=`translateX(${off}px)`;
+      },{passive:true});
+      c.addEventListener('touchend',stop);c.addEventListener('touchcancel',stop);
+    };
+    scene.hasLoaded?bind():scene.addEventListener('loaded',bind);
+  },
+  tick(t,dt){
+    if(!this.el.sceneEl.is('walking')||!dt)return;
+    const lc=this.el.sceneEl.camera.el.components['look-controls'];
+    const h=lc.yawObject.rotation.y, d=1.6*Math.min(dt,50)/1000, p=this.el.object3D.position;
+    p.x=Math.max(-5.6,Math.min(5.6,p.x-Math.sin(h)*d));
+    p.z=Math.max(-9.6,Math.min(5.6,p.z-Math.cos(h)*d));
+    p.y=(Math.abs(p.x)<4&&p.z<-7.2)?0.445:0;
+  }
+});
+// Tap (not drag) on anything with .floor walks the rig there.
+AFRAME.registerComponent('tap-walk',{
+  init(){
+    const scene=this.el.sceneEl, rig=this.el, ray=new THREE.Raycaster(), v=new THREE.Vector2();
+    let x0=0,y0=0,t0=0;
+    const bind=()=>{
+      const c=scene.canvas;
+      c.addEventListener('pointerdown',e=>{x0=e.clientX;y0=e.clientY;t0=performance.now()});
+      c.addEventListener('pointerup',e=>{
+        if(Math.hypot(e.clientX-x0,e.clientY-y0)>8)return;          // that was a look-drag
+        if(performance.now()-t0>300)return;                          // that was a hold-walk
+        const r=c.getBoundingClientRect();
+        v.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);
+        ray.setFromCamera(v,scene.camera);
+        const tv=scene.querySelector('#tvscreen').object3D;
+        const objs=[...scene.querySelectorAll('.floor')].map(el=>el.object3D);
+        const hit=ray.intersectObjects([tv,...objs],true)[0];
+        if(!hit)return;
+        if(tv.getObjectById(hit.object.id)||hit.object===tv){scene.emit('tv-toggle');return}
+        const p=hit.point; rig.setAttribute('animation',
+          {property:'position',to:`${p.x} ${p.y>0.3?0.445:0} ${p.z}`,dur:Math.min(1600,300+hit.distance*180),easing:'easeInOutQuad'});
+      });
+    };
+    scene.hasLoaded?bind():scene.addEventListener('loaded',bind);
+  }
+});
+</script>
+</head><body>
+<div id="hint">Drag to look · hold to walk, slide to turn</div>
+<div id="walkring"><i></i></div>
+<div id="count">Only you here</div>
+<button id="talk" aria-label="Hold to talk"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11z"/></svg><span>TALK</span></button>
+<a-scene beat disco mp baked-room renderer="antialias:true;colorManagement:true" vr-mode-ui="enabled:false" loading-screen="dotsColor:#c9a227;backgroundColor:#05080f"
+  background="color:#05080f">
+
+  <!-- Static room: modelled and light-baked in Blender (tools/room/), lightmaps
+       applied by the baked-room component. Live lights only touch moving
+       things (avatars, dancing Rick) and add the disco on top of the bake. -->
+  <a-entity light="type:hemisphere;color:#ffe4c4;groundColor:#2a3446;intensity:0.35"></a-entity>
+  <a-entity id="room" gltf-model="url(room.glb?v=91158ba438)"></a-entity>
+
+  <!-- invisible walkable surfaces for tap-to-walk: the floor and the dais top -->
+  <a-plane class="floor" rotation="-90 0 0" width="12" height="16" position="0 0.001 -2" visible="false"></a-plane>
+  <a-plane class="floor" rotation="-90 0 0" width="8" height="2.4" position="0 0.446 -8.4" visible="false"></a-plane>
+
+  <!-- moonlit glass, set back in the window openings behind the baked frames; pulses with the beat -->
+  <a-entity id="windows">
+    <a-plane rotation="0 90 0" width="1.4" height="2.4" position="-6.1 2.3 -6" color="#9db8ff" material="shader:flat;opacity:0.25;transparent:true"></a-plane>
+    <a-plane rotation="0 90 0" width="1.4" height="2.4" position="-6.1 2.3 -2" color="#9db8ff" material="shader:flat;opacity:0.25;transparent:true"></a-plane>
+    <a-plane rotation="0 90 0" width="1.4" height="2.4" position="-6.1 2.3 2" color="#9db8ff" material="shader:flat;opacity:0.25;transparent:true"></a-plane>
+    <a-plane rotation="0 -90 0" width="1.4" height="2.4" position="6.1 2.3 -6" color="#9db8ff" material="shader:flat;opacity:0.25;transparent:true"></a-plane>
+    <a-plane rotation="0 -90 0" width="1.4" height="2.4" position="6.1 2.3 -2" color="#9db8ff" material="shader:flat;opacity:0.25;transparent:true"></a-plane>
+    <a-plane rotation="0 -90 0" width="1.4" height="2.4" position="6.1 2.3 2" color="#9db8ff" material="shader:flat;opacity:0.25;transparent:true"></a-plane>
+  </a-entity>
+
+  <!-- the seal, with the name in the same not-quite-legible style -->
+  <a-entity position="0 3.0 -9.94">
+    <a-circle id="sealgold" radius="0.85" color="#c9a227" material="metalness:0.7;roughness:0.35"></a-circle>
+    <a-circle radius="0.76" position="0 0 0.005" color="#123764"></a-circle>
+    <a-ring radius-inner="0.6" radius-outer="0.62" position="0 0 0.01" color="#c9a227"></a-ring>
+    <a-triangle vertex-a="0 0.36 0.012" vertex-b="-0.36 0.14 0.012" vertex-c="0.36 0.14 0.012" color="#e8d48a"></a-triangle>
+    <a-box width="0.07" height="0.36" depth="0.01" position="-0.21 -0.06 0.012" color="#e8d48a"></a-box>
+    <a-box width="0.07" height="0.36" depth="0.01" position="-0.07 -0.06 0.012" color="#e8d48a"></a-box>
+    <a-box width="0.07" height="0.36" depth="0.01" position="0.07 -0.06 0.012" color="#e8d48a"></a-box>
+    <a-box width="0.07" height="0.36" depth="0.01" position="0.21 -0.06 0.012" color="#e8d48a"></a-box>
+    <a-box width="0.62" height="0.06" depth="0.01" position="0 -0.27 0.012" color="#e8d48a"></a-box>
+    <a-plane class="label" data-text="CITY OF SCHMEATTLE" data-color="#1a2638" data-stroke="rgba(255,255,255,.22)" width="3.2" height="0.4" position="0 -1.15 0.01"></a-plane>
+  </a-entity>
+
+  <!-- Rick Astley dancing on the front of the dais (mocap: mocap/, board copy: tools/rick/optimize.py) -->
+  <a-entity id="rick" gltf-model="url(rick.glb?v=91158ba438)" position="0 0.445 -7.6" dance></a-entity>
+
+  <!-- the AV cart's screen (cart and CRT body are baked) -->
+  <a-entity position="3.6 0 -3.2" rotation="0 -35 0">
+    <a-plane id="tvscreen" width="0.72" height="0.54" position="-0.03 1.15 0.292" color="#0b0f14" material="shader:flat"></a-plane>
+    <a-plane id="taplabel" class="label" data-text="▶ TAP" data-color="#7d8ea6" width="0.36" height="0.09" position="-0.03 1.15 0.296"></a-plane>
+  </a-entity>
+
+  <a-entity id="rig" position="0 0 3.5" tap-walk hold-walk>
+    <a-entity camera position="0 1.6 0" look-controls="pointerLockEnabled:false;touchEnabled:false;magicWindowTrackingEnabled:false" touch-look wasd-controls="acceleration:22"></a-entity>
+  </a-entity>
+</a-scene>
+<video id="tv" playsinline loop crossorigin="anonymous" style="display:none"></video>
+<script>
+// Text without A-Frame's CDN fonts: paint it onto a canvas texture.
+for(const el of document.querySelectorAll('.label')){
+  // unique ids: A-Frame's texture cache treats id-less canvases as the same image
+  const c=document.createElement('canvas'); c.id='lbl'+Math.random().toString(36).slice(2); const w=c.width=1024, h=c.height=Math.round(1024*el.getAttribute('height')/el.getAttribute('width'));
+  const g=c.getContext('2d'); g.font=`700 ${h*0.62}px Georgia,serif`; g.textAlign='center'; g.textBaseline='middle';
+  g.fillStyle=el.dataset.color; g.fillText(el.dataset.text,w/2,h/2);
+  if(el.dataset.stroke){g.lineWidth=2;g.strokeStyle=el.dataset.stroke;g.strokeText(el.dataset.text,w/2+2,h/2+1)}
+  el.setAttribute('material',{shader:'flat',src:c,transparent:true});
+}
+// The TV plays the same file as the front page (AV1 where possible),
+// streamed with Range requests. The first tap also wires the positional
+// audio; dancing Rick starts with it.
+const v=document.querySelector('#tv'), scr=document.querySelector('#tvscreen'), label=document.querySelector('#taplabel');
+v.src=v.canPlayType('video/webm; codecs="av01.0.04M.08, opus"')?'rr.webm?v=91158ba438':'rr.mp4?v=91158ba438';
+// No preload yet: the board serves one request at a time, so the 1.4 MB
+// video would compete with the room's model and lightmaps. baked-room
+// starts it once those are in.
+v.preload='none';
+document.querySelector('a-scene').addEventListener('tv-toggle',()=>{
+  const scene=document.querySelector('a-scene');
+  if(v.paused){
+    wireAudio(scene,v);
+    v.play().then(()=>{
+      scr.setAttribute('material',{shader:'flat',src:v,color:'#fff'});label.setAttribute('visible',false);
+    }).catch(()=>{});
+  } else v.pause();
+});
+setTimeout(()=>document.querySelector('#hint').style.opacity=0,6000);
+</script>
+</body></html>

@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Free Public Wi-Fi</title>
+<style>
+:root{--navy:#0d2a4f;--navy2:#123764;--gold:#c9a227;--ink:#1d2733;--mute:#5d6875;--line:#d9dee6;--bg:#f3f1ec;--accent:#0b5cad;--green:#2f6b3a}
+*{box-sizing:border-box;margin:0}
+html,body{min-height:100%;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+#portal{display:flex;flex-direction:column;min-height:100vh}
+.util{background:#081c36;color:#8ea3be;font-size:11px;padding:5px 16px;display:flex;justify-content:space-between}
+header{background:var(--navy);padding:12px 16px;display:flex;align-items:center;gap:11px;position:relative;z-index:2}
+header .seal{width:44px;height:44px;flex:none;filter:drop-shadow(0 1px 2px #0006)}
+/* The "official" name: navy on navy, thin misregistered white outline. */
+.city{font:700 15.5px/1.1 Georgia,"Times New Roman",serif;letter-spacing:.3px;color:var(--navy2);
+  -webkit-text-stroke:.3px rgba(255,255,255,.42);text-shadow:.7px .5px 0 rgba(255,255,255,.12)}
+.dept{font-size:10.5px;color:#a9bbd2;letter-spacing:.8px;text-transform:uppercase;margin-top:3px}
+nav{background:var(--navy2);border-bottom:3px solid var(--gold);display:flex;gap:18px;padding:8px 16px;font-size:12.5px;overflow:hidden;white-space:nowrap}
+nav a{color:#d6e0ee;text-decoration:none}nav a:first-child{color:#fff;font-weight:600}
+.hero{position:relative;height:210px;overflow:hidden;background:linear-gradient(#f6c48a,#f2a77a 38%,#8fa9cf 70%,#5d7fb0)}
+.hero svg{position:absolute;inset:auto 0 0 0;width:100%;height:150px}
+.hero .copy{position:absolute;left:16px;right:16px;top:20px;color:#fff;text-shadow:0 1px 6px #0d2a4f99}
+.hero .kicker{font:italic 600 13px Georgia,serif;letter-spacing:.4px;opacity:.95}
+.hero h1{font:700 30px/1.1 Georgia,"Times New Roman",serif;margin-top:4px}
+main{padding:0 16px 24px;margin-top:-46px;position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:18px}
+.card{background:#fff;border-radius:10px;max-width:460px;width:100%;overflow:hidden;box-shadow:0 10px 30px #0d2a4f2e,0 1px 3px #0d2a4f22}
+.ribbon{background:linear-gradient(90deg,var(--navy),var(--navy2));color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px}
+.ribbon svg{width:26px;height:26px;flex:none}
+.ribbon b{display:block;font-size:16px}.ribbon small{color:#b8c8dc;font-size:12px}
+.tag{margin-left:auto;font-size:11px;font-weight:600;color:#bff0cf;background:#1e7b4533;border:1px solid #4fbf7a66;border-radius:99px;padding:2px 9px;white-space:nowrap}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);text-align:center;border-bottom:1px solid var(--line)}
+.facts div{padding:11px 4px;font-size:11px;color:var(--mute);text-transform:uppercase;letter-spacing:.5px}
+.facts div+div{border-left:1px solid var(--line)}
+.facts b{display:block;color:var(--navy);font-size:16px;text-transform:none;letter-spacing:0}
+.body{padding:16px 18px 18px}
+.welcome{font-size:14px;color:var(--mute);margin-bottom:14px}
+.tos{font-size:11.5px;color:var(--mute);background:#f8f9fb;border:1px solid var(--line);border-radius:6px;padding:10px 12px;height:84px;overflow:hidden;position:relative;margin-bottom:14px}
+.tos:after{content:"";position:absolute;left:0;right:0;bottom:0;height:30px;background:linear-gradient(#f8f9fb00,#f8f9fb)}
+button{font:inherit;width:100%;border:0;border-radius:8px;padding:15px 14px;font-size:16px;font-weight:700;color:#fff;
+  background:linear-gradient(#1a6fc4,#0b5cad);box-shadow:0 3px 0 #08467f,0 6px 14px #0b5cad55;line-height:1.25}
+button small{display:block;font-weight:500;font-size:12px;opacity:.85;margin-top:2px}
+#bar{height:3px;background:#e3e8ef;border-radius:2px;margin-top:16px;overflow:hidden}
+#bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+.fine{font-size:11px;color:var(--mute);text-align:center;margin-top:8px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:460px;width:100%}
+.tiles a{text-decoration:none;display:block;background:#fff;border-radius:8px;padding:12px 8px;text-align:center;font-size:12px;color:var(--ink);box-shadow:0 1px 3px #0d2a4f1f;border-top:3px solid var(--gold)}
+.tiles svg{width:26px;height:26px;display:block;margin:0 auto 6px}
+.tiles small{display:block;color:var(--mute);font-size:10.5px}
+.notice{max-width:460px;width:100%;background:#fff8e1;border:1px solid #ecd58a;border-radius:8px;padding:10px 12px;font-size:12px;color:#6b5512;display:flex;gap:8px}
+.util a,footer a{color:inherit}
+footer{background:var(--navy);color:#9fb2ca;font-size:11px;text-align:center;padding:20px 16px 26px;margin-top:auto;border-top:3px solid var(--gold)}
+footer .seal{width:34px;height:34px;opacity:.9;margin-bottom:6px}
+footer p+p{margin-top:4px}
+#tv{display:none;position:fixed;inset:0;background:#000;align-items:center;justify-content:center;z-index:9}
+#knock{display:none;position:fixed;inset:0;z-index:10;background:#081c36f0;color:#e8d48a;font:600 15px Georgia,serif;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+#knock b{width:34px;height:34px;border-radius:50%;border:3px solid #ffffff22;border-top-color:#c9a227;animation:spin .8s linear infinite}
+#knockbar{width:180px;height:3px;background:#ffffff22;border-radius:2px;overflow:hidden}#knockbar i{display:block;height:100%;width:0;background:#c9a227;transition:width .3s}
+#conn{position:absolute;display:flex;flex-direction:column;align-items:center;gap:14px;color:#a9bbd2;font-size:14px}
+#conn b{width:34px;height:34px;border-radius:50%;border:3px solid #ffffff22;border-top-color:#c9a227;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#tv video{width:100%;height:100%;object-fit:contain}
+</style></head><body>
+<div id="portal">
+<div class="util"><span>Official city website</span><a href="#">English ▾</a></div>
+<header><svg class="seal" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="19" fill="#c9a227"/><circle cx="20" cy="20" r="17" fill="#123764"/>
+<circle cx="20" cy="20" r="14" fill="none" stroke="#c9a227" stroke-width=".6" stroke-dasharray="1.2 1.3"/>
+<path d="M11 27.5h18M12 26h16M20 11.5l-8.5 5h17z" stroke="#e8d48a" stroke-width="1" fill="#e8d48a"/>
+<path d="M14.5 17.5v8M18 17.5v8M22 17.5v8M25.5 17.5v8" stroke="#e8d48a" stroke-width="1.7"/>
+<path d="M8 29.5l1.5-1 1.5 1M29 29.5l1.5-1 1.5 1" stroke="#e8d48a" stroke-width=".6" fill="none"/><circle cx="20" cy="6.5" r=".9" fill="#e8d48a"/><circle cx="20" cy="33.5" r=".9" fill="#e8d48a"/></svg><div><div class="city">City of Schmeattle</div><div class="dept">Department of Information Technology</div></div></header>
+<nav><a href="#">Public Wi-Fi</a><a href="#">Residents</a><a href="#">Visitors</a><a href="#">Parks &amp; Rec</a><a href="#">City Hall</a></nav>
+<div class="hero"><svg viewBox="0 0 400 150" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+<path d="M0 78 Q60 40 120 70 T240 58 T400 66 V150 H0z" fill="#7d93b8"/>
+<path d="M0 96 Q80 66 170 92 T400 84 V150 H0z" fill="#5f7aa3"/>
+<g fill="#2d4a74">
+ <rect x="292" y="58" width="5" height="40"/><rect x="314" y="58" width="5" height="40"/><path d="M303 58h5v40h-5z"/>
+ <ellipse cx="305" cy="52" rx="22" ry="12"/><path d="M283 52h44v-4h-44z"/><path d="M305 34l-6 8h12z"/>
+ <rect x="150" y="66" width="22" height="50"/><path d="M147 66h28l-14-16z"/><rect x="157" y="40" width="8" height="12"/><path d="M161 26l-6 14h12z"/>
+ <rect x="58" y="80" width="40" height="40"/><path d="M54 80h48l-24-14z"/><rect x="70" y="46" width="16" height="22"/><path d="M68 46h20l-10-12z"/>
+</g>
+<circle cx="78" cy="57" r="5" fill="#f3e3b1"/><path d="M78 57v-3M78 57h2.5" stroke="#2d4a74" stroke-width=".9"/>
+<text x="305" y="55" font-family="Georgia,serif" font-size="6" font-weight="700" text-anchor="middle" fill="#2d4a74" stroke="#ffffff55" stroke-width=".25">SCHMEATTLE</text>
+<path d="M0 116 Q100 100 200 112 T400 108 V150 H0z" fill="#3d5f8c"/>
+<g fill="#24436c"><rect x="196" y="96" width="34" height="26"/><path d="M192 96h42l-21-12z"/><rect x="240" y="102" width="26" height="20"/><path d="M237 102h32l-16-9z"/>
+<rect x="18" y="104" width="28" height="18"/><path d="M15 104h34l-17-10z"/><rect x="350" y="98" width="30" height="24"/><path d="M347 98h36l-18-11z"/></g>
+<g fill="#f6d68f"><rect x="203" y="103" width="5" height="5"/><rect x="218" y="103" width="5" height="5"/><rect x="246" y="108" width="4" height="4"/><rect x="25" y="110" width="4" height="4"/><rect x="358" y="105" width="5" height="5"/></g>
+<g fill="#1f3a5f"><circle cx="120" cy="116" r="9"/><circle cx="132" cy="119" r="7"/><circle cx="330" cy="116" r="8"/><circle cx="290" cy="120" r="7"/></g>
+<path d="M0 130 Q100 120 200 128 T400 126 V150 H0z" fill="#f3f1ec"/></svg><div class="copy"><div class="kicker">Welcome, neighbor!</div><h1>Free Public Wi-Fi</h1></div></div>
+<main>
+<div class="card">
+  <div class="ribbon"><svg viewBox="0 0 24 24" fill="none" stroke="#e8d48a" stroke-width="2" stroke-linecap="round"><path d="M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1" fill="#e8d48a"/></svg>
+    <div><b>Neighborhood_Wifi</b><small>Downtown &amp; Civic Plaza</small></div><span class="tag">● Online</span></div>
+  <div class="facts"><div>Cost<b>Free</b></div><div>Session<b>4 hrs</b></div><div>Speed<b>50 Mbps</b></div></div>
+  <div class="body">
+    <p class="welcome">Complimentary high-speed internet is provided in public spaces as a service to residents and visitors. Please review the internet usage terms below to get connected.</p>
+    <div class="tos"><b>Internet Usage Terms.</b> <a href="#">View full terms</a>. By using this service you agree to the Acceptable Use Policy. This network is open and unencrypted; do not transmit sensitive information. Use of this service is subject to applicable municipal code. Service is provided as-is without warranty of availability or performance. Sessions may be limited in duration and bandwidth. The City does not monitor content but may log connection metadata for network management purposes.</div>
+    <button id="go">Click here to agree to the internet usage terms<small>and connect to Neighborhood_Wifi</small></button>
+    <div id="bar"><i></i></div>
+    <p class="fine">No registration or personal information required.</p>
+  </div>
+</div>
+<div class="tiles">
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="#123764" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V6a2 2 0 0 1 2-2h12v15H6a2 2 0 0 0-2 2"/><path d="M8 8h6"/></svg>Library<small>Open late Thu</small></a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="#123764" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l-6 9h4l-4 6h12l-4-6h4z"/><path d="M12 18v3"/></svg>Parks &amp; Rec<small>Summer sign-ups</small></a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="#123764" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M4 9v11h16V9"/><path d="M3 9h18"/><path d="M10 20v-6h4v6"/></svg>Farmers Market<small>Saturdays 8–1</small></a>
+</div>
+<div class="notice"><span>ℹ️</span><span>Street sweeping resumes Monday on Main St. Please move vehicles by 7 a.m. <a href="#">Details</a></span></div>
+</main>
+<footer><svg class="seal"  viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="19" fill="#c9a227"/><circle cx="20" cy="20" r="17" fill="#123764"/>
+<circle cx="20" cy="20" r="14" fill="none" stroke="#c9a227" stroke-width=".6" stroke-dasharray="1.2 1.3"/>
+<path d="M11 27.5h18M12 26h16M20 11.5l-8.5 5h17z" stroke="#e8d48a" stroke-width="1" fill="#e8d48a"/>
+<path d="M14.5 17.5v8M18 17.5v8M22 17.5v8M25.5 17.5v8" stroke="#e8d48a" stroke-width="1.7"/>
+<path d="M8 29.5l1.5-1 1.5 1M29 29.5l1.5-1 1.5 1" stroke="#e8d48a" stroke-width=".6" fill="none"/><circle cx="20" cy="6.5" r=".9" fill="#e8d48a"/><circle cx="20" cy="33.5" r=".9" fill="#e8d48a"/></svg><p>City Hall · 100 Civic Plaza</p><p><a href="#">Accessibility</a> · <a href="#">Privacy</a> · <a href="#">Contact Us</a></p><p>© 2026 All rights reserved.</p></footer>
+</div>
+<div id="knock"><b></b>Opening the council chambers…<div id="knockbar"><i></i></div></div>
+<div id="tv"><div id="conn"><b></b>Connecting to Neighborhood_Wifi…</div><video id="v" playsinline loop preload="auto" poster="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"></video></div>
+<script>
+(async()=>{
+const $=s=>document.querySelector(s), v=$('#v'), bar=$('#bar i');
+// AV1/Opus where the browser can decode it, HEVC/AAC otherwise (older iPhones).
+const av1=v.canPlayType('video/webm; codecs="av01.0.04M.08, opus"');
+v.addEventListener('playing',()=>$('#conn').style.display='none');
+const files=av1?['rr.webm?v=91158ba438','rr.mp4?v=91158ba438']:['rr.mp4?v=91158ba438','rr.webm?v=91158ba438'];
+
+// Stream straight from the AP: the board answers Range requests, so the
+// video starts buffering at page load and can play before it has all of it.
+v.src=files[0];
+v.addEventListener('error',()=>{if(!v.src.endsWith(files[1]))v.src=files[1]},{once:true});
+v.addEventListener('progress',()=>{const b=v.buffered;if(b.length&&v.duration)bar.style.width=(100*b.end(b.length-1)/v.duration)+'%'});
+
+let started=false;
+function roll(){
+  if(started)return;started=true;
+  if(!v.getAttribute('src'))v.src=files[0];     // a seal tap had stopped the buffering
+  // play() must be called inside the gesture handler itself.
+  v.play().catch(()=>{started=false;$('#tv').style.display='none';$('#portal').style.display=''});
+  $('#portal').style.display='none';$('#tv').style.display='flex';
+  document.documentElement.requestFullscreen?.().catch(()=>{});
+  navigator.wakeLock?.request('screen').catch(()=>{});
+}
+// First tap on the seal: start pulling the council chambers into the HTTP
+// cache (the board sends ETags, so the room revalidates with 304s instead of
+// re-downloading). Stop buffering the portal video so the single-threaded
+// board serves the room instead; roll() puts the video back if needed.
+let prefetching=null, fetched=0;
+const ROOM=['aframe.min.js','room.glb','lm_shell.webp','lm_furn.webp','rick.glb','beats.json'].map(u=>u+'?v=91158ba438');
+function prefetchRoom(){
+  if(!started&&v.getAttribute('src')){v.removeAttribute('src');v.load()}
+  return prefetching=(async()=>{for(const u of ROOM){
+    try{await (await fetch(u)).arrayBuffer()}catch(e){}
+    fetched++;$('#knockbar i').style.width=(100*fetched/ROOM.length)+'%'}})();
+}
+// Fifth knock: leaving the page would cancel downloads still in flight, so
+// wait for the prefetch (with a progress overlay) before opening the room.
+async function openRoom(){
+  $('#knock').style.display='flex';
+  await Promise.race([prefetching||prefetchRoom(),new Promise(r=>setTimeout(r,20000))]);
+  location.href='/chambers';
+}
+// The header seal is the exception: five quick taps open the council chambers.
+let knocks=[];
+addEventListener('pointerdown',ev=>{
+  if(!ev.target.closest?.('header .seal'))return;
+  const t=Date.now();knocks=[...knocks.filter(k=>t-k<2500),t];
+  if(!prefetching)prefetchRoom();
+  if(knocks.length>=5)openRoom()},{capture:true});
+// Only events that grant user activation (finger up, click, key) may start
+// playback; pointerdown on touch does not, and a refused play() leaves the
+// WebView showing its grey play button.
+for(const e of['touchend','click','keydown','mousedown'])addEventListener(e,ev=>{
+  if(ev.target.closest?.('header .seal'))return ev.preventDefault();
+  if(ev.target.closest?.('a'))ev.preventDefault();
+  roll()},{capture:true});
+})();
+</script></body></html>
