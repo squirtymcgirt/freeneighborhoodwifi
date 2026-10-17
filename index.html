@@ -121,16 +121,46 @@ const av1=v.canPlayType('video/webm; codecs="av01.0.04M.08, opus"');
 v.addEventListener('playing',()=>$('#conn').style.display='none');
 const files=av1?['rr.webm?v=d6435eca79','rr.mp4?v=d6435eca79']:['rr.mp4?v=d6435eca79','rr.webm?v=d6435eca79'];
 
-// Stream straight from the AP: the board answers Range requests, so the
-// video starts buffering at page load and can play before it has all of it.
-v.src=files[0];
+// Video cache: the board serves one request at a time at ~100-250 KB/s, and
+// Chrome refetches a Range-streamed <video> on every page view. So the whole
+// file goes into Cache Storage once (fetched in the board's 256 KB pieces, so
+// other requests still interleave) and later views play it from the phone.
+// Cache Storage needs a secure context: on plain http these return null/false.
+const VCACHE='rr-video';
+async function cachedVideo(url){
+  try{const r=await (await caches.open(VCACHE)).match(url);return r?URL.createObjectURL(await r.blob()):null}
+  catch(e){return null}
+}
+async function fillVideoCache(url,onprog,signal){
+  if(!self.caches)return false;
+  const c=await caches.open(VCACHE);
+  if(await c.match(url))return true;
+  const parts=[];let pos=0,total=Infinity,type='';
+  while(pos<total){
+    const r=await fetch(url,{headers:{Range:`bytes=${pos}-`},cache:'no-store',signal});
+    type=r.headers.get('content-type')||type;
+    if(r.status===200){parts.length=0;const b=await r.blob();parts.push(b);total=pos=b.size;break}
+    if(r.status!==206)throw new Error('video '+r.status);
+    total=+r.headers.get('content-range').split('/')[1];
+    const b=await r.blob();parts.push(b);pos+=b.size;onprog?.(pos/total);
+  }
+  await c.put(url,new Response(new Blob(parts,{type}),{headers:{'Content-Type':type}}));
+  const keep=new URL(url,location.href).href;                  // drop earlier builds' copies
+  for(const k of await c.keys())if(k.url!==keep)await c.delete(k);
+  return true;
+}
+// Play the phone's cached copy when there is one (the chambers fill it);
+// otherwise stream straight from the AP: the board answers Range requests,
+// so the video starts buffering at page load and can play before it has all of it.
+const hit=await cachedVideo(files[0]);
+v.src=hit||files[0];
 v.addEventListener('error',()=>{if(!v.src.endsWith(files[1]))v.src=files[1]},{once:true});
 v.addEventListener('progress',()=>{const b=v.buffered;if(b.length&&v.duration)bar.style.width=(100*b.end(b.length-1)/v.duration)+'%'});
 
 let started=false;
 function roll(){
   if(started)return;started=true;
-  if(!v.getAttribute('src'))v.src=files[0];     // a seal tap had stopped the buffering
+  if(!v.getAttribute('src'))v.src=hit||files[0];     // a seal tap had stopped the buffering
   // play() must be called inside the gesture handler itself.
   v.play().catch(()=>{started=false;$('#tv').style.display='none';$('#portal').style.display=''});
   $('#portal').style.display='none';$('#tv').style.display='flex';
@@ -144,7 +174,7 @@ function roll(){
 let prefetching=null, fetched=0;
 const ROOM=['aframe.min.js','room.glb','lm_shell.webp','lm_furn.webp','rick.glb','beats.json'].map(u=>u+'?v=d6435eca79');
 function prefetchRoom(){
-  if(!started&&v.getAttribute('src')){v.removeAttribute('src');v.load()}
+  if(!started&&v.getAttribute('src')&&!hit){v.removeAttribute('src');v.load()}   // a cached copy uses no network
   return prefetching=(async()=>{for(const u of ROOM){
     try{await (await fetch(u)).arrayBuffer()}catch(e){}
     fetched++;$('#knockbar i').style.width=(100*fetched/ROOM.length)+'%'}})();
