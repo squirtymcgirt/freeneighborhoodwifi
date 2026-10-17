@@ -119,7 +119,7 @@ const $=s=>document.querySelector(s), v=$('#v'), bar=$('#bar i');
 // AV1/Opus where the browser can decode it, HEVC/AAC otherwise (older iPhones).
 const av1=v.canPlayType('video/webm; codecs="av01.0.04M.08, opus"');
 v.addEventListener('playing',()=>$('#conn').style.display='none');
-const files=av1?['rr.webm?v=888d6855e1','rr.mp4?v=888d6855e1']:['rr.mp4?v=888d6855e1','rr.webm?v=888d6855e1'];
+const files=av1?['rr.webm?v=d6435eca79','rr.mp4?v=d6435eca79']:['rr.mp4?v=d6435eca79','rr.webm?v=d6435eca79'];
 
 // Stream straight from the AP: the board answers Range requests, so the
 // video starts buffering at page load and can play before it has all of it.
@@ -142,7 +142,7 @@ function roll(){
 // re-downloading). Stop buffering the portal video so the single-threaded
 // board serves the room instead; roll() puts the video back if needed.
 let prefetching=null, fetched=0;
-const ROOM=['aframe.min.js','room.glb','lm_shell.webp','lm_furn.webp','rick.glb','beats.json'].map(u=>u+'?v=888d6855e1');
+const ROOM=['aframe.min.js','room.glb','lm_shell.webp','lm_furn.webp','rick.glb','beats.json'].map(u=>u+'?v=d6435eca79');
 function prefetchRoom(){
   if(!started&&v.getAttribute('src')){v.removeAttribute('src');v.load()}
   return prefetching=(async()=>{for(const u of ROOM){
