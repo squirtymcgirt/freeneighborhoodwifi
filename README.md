@@ -24,7 +24,7 @@ Needs ffmpeg built with libaom, libx265 and libopus, and Python 3 with numpy.
 
 ## Credits
 - [A-Frame](https://aframe.io/) 1.7.0 (MIT), `aframe.min.js`
-- The dancer: [Mesh2Motion](https://github.com/Mesh2Motion/mesh2motion-assets)'s
-  CC0 human model, rigged with Make-It-Animatable, dance captured from video
-  with Mocapy
+- The dancer: ["rick-astley"](https://sketchfab.com/3d-models/rick-astley-2aed6f33ce554ac59e2bfa92395ed6fa)
+  by DAWCO1987 ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), rigged with
+  Make-It-Animatable; the dance is motion-captured with GVHMR from the Fortnite "Never Gonna" emote
 - Room modelled and light-baked in Blender
